@@ -25,6 +25,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 import { OutputChannelLogger } from './log';
+import { resolveWorkspaceFolders } from './uri';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -39,7 +40,8 @@ async function createModel(context: ExtensionContext, outputChannelLogger: Outpu
 	let pathHints = Array.isArray(pathValue) ? pathValue : pathValue ? [pathValue] : [];
 
 	const { isTrusted, workspaceFolders = [] } = workspace;
-	const excludes = isTrusted ? [] : workspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
+	const resolvedWorkspaceFolders = resolveWorkspaceFolders(workspaceFolders);
+	const excludes = isTrusted ? [] : resolvedWorkspaceFolders.map(f => path.normalize(f.uri.fsPath).replace(/[\r\n]+$/, ''));
 
 	if (!isTrusted && pathHints.length !== 0) {
 		// Filter out any non-absolute paths
@@ -136,7 +138,7 @@ async function warnAboutMissingGit(): Promise<void> {
 		return;
 	}
 
-	const areGitRepositories = await Promise.all(workspace.workspaceFolders.map(isGitRepository));
+	const areGitRepositories = await Promise.all(resolveWorkspaceFolders(workspace.workspaceFolders).map(isGitRepository));
 
 	if (areGitRepositories.every(isGitRepository => !isGitRepository)) {
 		return;

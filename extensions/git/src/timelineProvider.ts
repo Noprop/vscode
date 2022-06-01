@@ -10,6 +10,7 @@ import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
+import { resolveUri } from './uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -104,8 +105,9 @@ export class GitTimelineProvider implements TimelineProvider {
 		this.disposable.dispose();
 	}
 
-	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
+	async provideTimeline(uriReq: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
 		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
+		const uri = resolveUri(uriReq);
 
 		const repo = this.model.getRepository(uri);
 		if (!repo) {

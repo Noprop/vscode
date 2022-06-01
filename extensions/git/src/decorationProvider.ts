@@ -10,6 +10,7 @@ import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource } from './util';
 import { GitErrorCodes, Status } from './api/git';
+import { resolveUri, resolveUriWithGitScheme } from './uri';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
@@ -29,7 +30,8 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
-	async provideFileDecoration(uri: Uri): Promise<FileDecoration | undefined> {
+	async provideFileDecoration(uriReq: Uri): Promise<FileDecoration | undefined> {
+		const uri = resolveUri(uriReq);
 		const repository = this.model.getRepository(uri);
 
 		if (!repository) {
@@ -140,7 +142,8 @@ class GitDecorationProvider implements FileDecorationProvider {
 		}
 	}
 
-	provideFileDecoration(uri: Uri): FileDecoration | undefined {
+	provideFileDecoration(reqUri: Uri): FileDecoration | undefined {
+		const uri = resolveUriWithGitScheme(reqUri);
 		return this.decorations.get(uri.toString());
 	}
 

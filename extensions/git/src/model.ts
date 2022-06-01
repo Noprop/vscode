@@ -12,7 +12,7 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
-import { fromGitUri } from './uri';
+import { fromGitUri, resolveUri, resolveWorkspaceFolders, resolveWindowVisibleTextEditors, resolvePath } from './uri';
 import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
@@ -129,8 +129,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 
 	private async doInitialScan(): Promise<void> {
 		await Promise.all([
-			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
-			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
+			this.onDidChangeWorkspaceFolders({ added: resolveWorkspaceFolders(workspace.workspaceFolders), removed: [] }),
+			this.onDidChangeVisibleTextEditors(resolveWindowVisibleTextEditors(window.visibleTextEditors)),
 			this.scanWorkspaceFolders()
 		]);
 	}
@@ -149,7 +149,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			return;
 		}
 
-		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
+		await Promise.all((resolveWorkspaceFolders(workspace.workspaceFolders)).map(async folder => {
 			const root = folder.uri.fsPath;
 			this.outputChannelLogger.logTrace(`[swsf] Workspace folder: ${root}`);
 
@@ -238,7 +238,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		const possibleRepositoryFolders = added
 			.filter(folder => !this.getOpenRepository(folder.uri));
 
-		const activeRepositoriesList = window.visibleTextEditors
+		const activeRepositoriesList = resolveWindowVisibleTextEditors(window.visibleTextEditors)
 			.map(editor => this.getRepository(editor.document.uri))
 			.filter(repository => !!repository) as Repository[];
 
@@ -247,7 +247,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			.map(folder => this.getOpenRepository(folder.uri))
 			.filter(r => !!r)
 			.filter(r => !activeRepositories.has(r!.repository))
-			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+			.filter(r => !(resolveWorkspaceFolders(workspace.workspaceFolders)).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		openRepositoriesToDispose.forEach(r => r.dispose());
 		this.outputChannelLogger.logTrace(`[swf] Scan workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
@@ -255,7 +255,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	private onDidChangeConfiguration(): void {
-		const possibleRepositoryFolders = (workspace.workspaceFolders || [])
+		const possibleRepositoryFolders = (resolveWorkspaceFolders(workspace.workspaceFolders))
 			.filter(folder => workspace.getConfiguration('git', folder.uri).get<boolean>('enabled') === true)
 			.filter(folder => !this.getOpenRepository(folder.uri));
 
@@ -284,7 +284,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 		}
 
 		await Promise.all(editors.map(async editor => {
-			const uri = editor.document.uri;
+			const uri = resolveUri(editor.document.uri);
 
 			if (uri.scheme !== 'file') {
 				return;
@@ -303,7 +303,8 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 	}
 
 	@sequentialize
-	async openRepository(repoPath: string): Promise<void> {
+	async openRepository(repoPathReq: string): Promise<void> {
+		const repoPath = resolvePath(repoPathReq);
 		this.outputChannelLogger.logTrace(`Opening repository: ${repoPath}`);
 		if (this.getRepository(repoPath)) {
 			this.outputChannelLogger.logTrace(`Repository for path ${repoPath} already exists`);
@@ -355,7 +356,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
 			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
 			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
-				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+				const isRepoInWorkspaceFolders = (resolveWorkspaceFolders(workspace.workspaceFolders)).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
 
 				if (!isRepoInWorkspaceFolders) {
 					if (this.showRepoOnHomeDriveRootWarning) {
@@ -389,7 +390,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPushErrorHandlerR
 					return true;
 				}
 			} else {
-				for (const folder of workspace.workspaceFolders || []) {
+				for (const folder of resolveWorkspaceFolders(workspace.workspaceFolders)) {
 					if (pathEquals(path.join(folder.uri.fsPath, ignoredRepo), repositoryRoot)) {
 						return true;
 					}

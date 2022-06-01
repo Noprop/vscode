@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri } from 'vscode';
+import { Uri, WorkspaceFolder, TextEditor } from 'vscode';
+import * as fs from 'fs';
 
 export interface GitUriParams {
 	path: string;
@@ -61,4 +62,83 @@ export function toMergeUris(uri: Uri): { base: Uri; ours: Uri; theirs: Uri } {
 		ours: toGitUri(uri, ':2'),
 		theirs: toGitUri(uri, ':3'),
 	};
+}
+
+
+export function fromGitUriAndResolve(uri: Uri): GitUriParams {
+	const parsedQuery = JSON.parse(uri.query);
+	try {
+		return {
+			...parsedQuery,
+			path: fs.realpathSync(parsedQuery.path)
+		};
+	} catch (e) {
+		return parsedQuery;
+	}
+}
+
+export function resolvePath(path: string): string {
+	try {
+		return fs.realpathSync(path);
+	} catch (e) {
+		// unable to resolve
+		return path;
+	}
+}
+
+export function resolveUri(uri: Uri): Uri {
+	return uri.with({
+		...uri,
+		path: resolvePath(uri.path)
+	});
+}
+
+export function resolveUriWithGitScheme(uri: Uri): Uri {
+	try {
+		// keep trailing .git if found
+		const endsInGit = /.git$/.test(uri.path);
+		const oldPathResolved = resolvePath(endsInGit ? uri.path.replace(/.git$/, '') : uri.path);
+		const newUriObj = {
+			...uri,
+			path: endsInGit ? oldPathResolved + '.git' : oldPathResolved,
+		};
+		if (uri.query) {
+			newUriObj.query = JSON.stringify(fromGitUriAndResolve(uri));
+		}
+		return uri.with(newUriObj);
+	} catch (e) {
+		// unable to resovle
+		return uri;
+	}
+}
+
+export function resolveWorkspaceFolders(workspaceFolders: readonly WorkspaceFolder[] | undefined): WorkspaceFolder[] {
+	const newFolders: WorkspaceFolder[] = [];
+	if (!workspaceFolders) {
+		return [];
+	}
+	workspaceFolders.forEach(folder => {
+		newFolders.push({
+			...folder,
+			uri: folder.uri.with({
+				...folder.uri,
+				path: resolvePath(folder.uri.path)
+			})
+		});
+	});
+	return newFolders;
+}
+
+export function resolveWindowVisibleTextEditors(editors: readonly TextEditor[]): TextEditor[] {
+	const newEditors: TextEditor[] = [];
+	editors.forEach(editor => {
+		newEditors.push({
+			...editor,
+			document: {
+				...editor.document,
+				uri: resolveUri(editor.document.uri)
+			}
+		});
+	});
+	return newEditors;
 }

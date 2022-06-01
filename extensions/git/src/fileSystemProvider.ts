@@ -5,7 +5,7 @@
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError } from 'vscode';
 import { debounce, throttle } from './decorators';
-import { fromGitUri, toGitUri } from './uri';
+import { fromGitUri, toGitUri, resolveUriWithGitScheme } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
 import { filterEvent, eventToPromise, isDescendant, pathEquals, EmptyDisposable } from './util';
 import { Repository } from './repository';
@@ -125,7 +125,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		return EmptyDisposable;
 	}
 
-	async stat(uri: Uri): Promise<FileStat> {
+	async stat(uriReq: Uri): Promise<FileStat> {
+		const uri = resolveUriWithGitScheme(uriReq);
 		await this.model.isInitialized;
 
 		const { submoduleOf, path, ref } = fromGitUri(uri);
@@ -152,7 +153,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		throw new Error('Method not implemented.');
 	}
 
-	async readFile(uri: Uri): Promise<Uint8Array> {
+	async readFile(uriReq: Uri): Promise<Uint8Array> {
+		const uri = resolveUriWithGitScheme(uriReq);
 		await this.model.isInitialized;
 
 		const { path, ref, submoduleOf } = fromGitUri(uri);
