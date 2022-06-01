@@ -1933,29 +1933,12 @@ export class Repository implements Disposable {
 			}
 		}
 
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
-		}
-
 		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
 		if (sort !== 'alphabetically' && sort !== 'committerdate') {
 			sort = 'alphabetically';
 		}
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
-		this._HEAD = HEAD;
 		this._refs = refs!;
 		this._remotes = remotes!;
 		this._submodules = submodules!;
@@ -2019,6 +2002,22 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		this._onDidChangeStatus.fire();
+
+		let HEAD: Branch | undefined;
+		try {
+			HEAD = await this.repository.getHEAD();
+
+			if (HEAD.name) {
+				try {
+					HEAD = await this.repository.getBranch(HEAD.name);
+				} catch (err) {
+					// noop
+				}
+			}
+		} catch (err) {
+			// noop
+		}
+		this._HEAD = HEAD;
 
 		this._sourceControl.commitTemplate = await this.getInputTemplate();
 	}
